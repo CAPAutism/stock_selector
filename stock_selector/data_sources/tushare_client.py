@@ -47,11 +47,37 @@ class TushareClient:
             trade_date = datetime.now().strftime("%Y%m%d")
 
         try:
+            # 尝试使用ths_dp接口（需要权限）
             df = self.pro.ths_dp(trade_date=trade_date)
-            return df
+            if df is not None and not df.empty:
+                # 添加rank字段用于评分
+                df = df.sort_values('main_amount', ascending=False).reset_index(drop=True)
+                df['rank'] = range(1, len(df) + 1)
+                return df
         except Exception as e:
-            print(f"获取板块资金流向失败: {e}")
-            return pd.DataFrame()
+            print(f"ths_dp接口调用失败，尝试备选接口: {e}")
+
+        try:
+            # 备选：使用moneyflow_ind_dc接口获取东方财富板块资金流向
+            df = self.pro.moneyflow_ind_dc(
+                trade_date=trade_date,
+                fields='trade_date,name,pct_change,close,net_amount,net_amount_rate,rank'
+            )
+            if df is not None and not df.empty:
+                # 转换为统一格式
+                result = pd.DataFrame()
+                result['code'] = df['name']  # 使用名称作为code
+                result['name'] = df['name']
+                result['close'] = df['close']
+                result['change'] = df['pct_change']
+                result['amount'] = df['net_amount']
+                result['main_amount'] = df['net_amount']
+                result['rank'] = df['rank']
+                return result
+        except Exception as e:
+            print(f"moneyflow_ind_dc接口调用失败: {e}")
+
+        return pd.DataFrame()
 
     def get_daily_data(self, ts_code: str, start_date: str, end_date: str) -> pd.DataFrame:
         """

@@ -78,13 +78,29 @@ def run_pipeline(trade_date: Optional[str] = None) -> Dict[str, Any]:
     # Track current agent name for error reporting
     current_agent = None
 
+    # Collect all data for final report
+    report_data = {
+        'trade_date': trade_date,
+        'top_stocks': [],
+        'sectors': [],
+        'supply_chains': [],
+        'industry_distribution': {},
+        'data_sources': {
+            'fund_flow': {'source': 'AKShare', 'update_time': trade_date},
+            'internet_heat': {'source': '待实现', 'update_time': trade_date},
+            'stock_price': {'source': 'AKShare', 'update_time': trade_date}
+        }
+    }
+
     try:
         # Step 1: DataCollectorAgent (no input queue, produces raw data)
         current_agent = "DataCollectorAgent"
         logger.info(f"Running {current_agent}...")
         collector = DataCollectorAgent()
         collector_result = collector.process()
-        logger.info(f"{current_agent} completed: {len(collector_result.get('sectors_fund_flow', []))} sectors collected")
+        sectors_fund_flow = collector_result.get('sectors_fund_flow', [])
+        report_data['sectors'] = sectors_fund_flow
+        logger.info(f"{current_agent} completed: {len(sectors_fund_flow)} sectors collected")
         result['summary']['agent_results'].append({
             'agent': current_agent,
             'success': True,
@@ -98,6 +114,7 @@ def run_pipeline(trade_date: Optional[str] = None) -> Dict[str, Any]:
         sector_analyzer = SectorAnalyzerAgent()
         sector_result = sector_analyzer.process()
         top_sectors = sector_result.get('top_sectors', [])
+        report_data['sectors'] = top_sectors
         logger.info(f"{current_agent} completed: {len(top_sectors)} top sectors")
         result['summary']['agent_results'].append({
             'agent': current_agent,
@@ -112,6 +129,7 @@ def run_pipeline(trade_date: Optional[str] = None) -> Dict[str, Any]:
         chain_analyzer = ChainAnalyzerAgent()
         chain_result = chain_analyzer.process()
         chain_structures = chain_result.get('chain_structures', [])
+        report_data['supply_chains'] = chain_structures
         logger.info(f"{current_agent} completed: {len(chain_structures)} chain structures")
         result['summary']['agent_results'].append({
             'agent': current_agent,
@@ -126,6 +144,7 @@ def run_pipeline(trade_date: Optional[str] = None) -> Dict[str, Any]:
         screener = StockScreenerAgent()
         screener_result = screener.process()
         top_stocks = screener_result.get('top_stocks', [])
+        report_data['top_stocks'] = top_stocks
         logger.info(f"{current_agent} completed: {len(top_stocks)} top stocks")
         result['summary']['agent_results'].append({
             'agent': current_agent,
@@ -138,7 +157,7 @@ def run_pipeline(trade_date: Optional[str] = None) -> Dict[str, Any]:
         current_agent = "ObsidianReportAgent"
         logger.info(f"Running {current_agent}...")
         report_agent = ObsidianReportAgent()
-        report_result = report_agent.process()
+        report_result = report_agent.process(report_data)
         logger.info(f"{current_agent} completed: report_path={report_result.get('report_path')}")
         result['summary']['agent_results'].append({
             'agent': current_agent,

@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from stock_selector.agents.base_agent import BaseAgent
 from stock_selector.queue.memory_queue import get_queue
-from stock_selector.data_sources.tushare_client import TushareClient
+from stock_selector.data_sources.akshare_client import AKShareClient
 from scorers.chain_scorer import ChainScorer
 
 
@@ -43,10 +43,8 @@ class ChainAnalyzerAgent(BaseAgent):
         # 初始化产业链评分器
         self.chain_scorer = ChainScorer()
 
-        # 初始化Tushare客户端(使用环境变量中的token)
-        import os
-        token = os.environ.get("TUSHARE_TOKEN", "")
-        self.tushare_client = TushareClient(token) if token else None
+        # 初始化AKShare客户端
+        self.akshare_client = AKShareClient()
 
     def _classify_stock_position(self, stock_code: str, sector_code: str) -> str:
         """
@@ -93,19 +91,28 @@ class ChainAnalyzerAgent(BaseAgent):
         Returns:
             Dict: {sector_code: [stock_codes]}
         """
-        if not self.tushare_client:
-            # 如果没有Tushare客户端，使用模拟数据
+        # 获取板块的资金流向数据（包含领涨股票信息）
+        df = self.akshare_client.get_sector_fund_flow()
+        if df is None or df.empty:
+            # 如果获取失败，使用模拟数据
             return {
-                sector.get("code", ""): [f"stock{i:03d}" for i in range(3)]
+                sector.get("code", ""): [f"{sector.get('code', '')}_{i:03d}" for i in range(3)]
                 for sector in sectors
             }
 
         stocks_by_sector = {}
         for sector in sectors:
             sector_code = sector.get("code", "")
-            if sector_code:
-                stocks = self.tushare_client.get_stocks_in_sector(sector_code)
-                stocks_by_sector[sector_code] = stocks if stocks else []
+            sector_name = sector.get("name", "")
+
+            # 尝试通过板块名称匹配
+            matching = df[df.iloc[:, 1] == sector_name]
+            if matching.empty:
+                # 使用前几只股票作为成分股
+                stocks_by_sector[sector_code] = [f"{sector_code}_{i:03d}" for i in range(3)]
+            else:
+                # 使用匹配到的数据
+                stocks_by_sector[sector_code] = matching.iloc[:, 0].tolist()[:10]
 
         return stocks_by_sector
 

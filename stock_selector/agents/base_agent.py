@@ -139,9 +139,13 @@ class BaseAgent(ABC):
         if self.input_queue is None:
             raise ValueError("No input_queue configured")
 
-        # Get the raw data and wrap in AgentMessage
-        data = self.input_queue.get()
-        return AgentMessage(agent=self.name, data=data)
+        # Get the message from queue
+        message = self.input_queue.get()
+        # If message is already an AgentMessage, return it directly
+        if isinstance(message, AgentMessage):
+            return message
+        # Otherwise wrap it
+        return AgentMessage(agent=self.name, data=message)
 
     @abstractmethod
     def process(self, data: Any) -> Any:

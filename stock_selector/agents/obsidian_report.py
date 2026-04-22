@@ -105,9 +105,9 @@ class ObsidianReportAgent(BaseAgent):
         for sector in sectors:
             rank = sector.get("rank", "-")
             name = sector.get("name", "-")
-            fund_heat = sector.get("fund_heat", 0)
-            internet_heat = sector.get("internet_heat", 0)
-            total_score = sector.get("total_score", 0)
+            fund_heat = sector.get("fund_flow_score", sector.get("score", 0))
+            internet_heat = sector.get("heat_score", 0)
+            total_score = sector.get("score", sector.get("total_score", 0))
             lines.append(f"| {rank} | {name} | {fund_heat:.1f} | {internet_heat:.1f} | {total_score:.1f} |")
 
         return "\n".join(lines)
@@ -155,8 +155,15 @@ class ObsidianReportAgent(BaseAgent):
             lines.append("|:----:|:--------|:-----|:--------:|")
 
             for position_key in ["upstream", "midstream", "downstream"]:
-                position_data = chain.get(position_key, {})
-                if position_data:
+                position_data = chain.get(position_key, [])
+                # 处理列表格式的产业链数据
+                if isinstance(position_data, list) and position_data:
+                    first_stock = position_data[0]
+                    name = first_stock.get("name", "-") if isinstance(first_stock, dict) else "-"
+                    code = first_stock.get("code", "-") if isinstance(first_stock, dict) else "-"
+                    position = position_key.capitalize()
+                    lines.append(f"| {position_key.capitalize()} | {name} | {code} | {position} |")
+                elif isinstance(position_data, dict):
                     name = position_data.get("name", "-")
                     code = position_data.get("code", "-")
                     position = position_data.get("position", "-")
@@ -284,10 +291,10 @@ class ObsidianReportAgent(BaseAgent):
         formatted_date = self._format_trade_date(trade_date)
         generation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # 提取数据
+        # 提取数据 - 从多个可能的来源获取板块数据
         top_stocks = data.get("top_stocks", [])
-        sectors = data.get("sectors", [])
-        supply_chains = data.get("supply_chains", [])
+        sectors = data.get("sectors", data.get("top_sectors", []))
+        supply_chains = data.get("supply_chains", data.get("chain_structures", []))
         industry_distribution = data.get("industry_distribution", {})
         data_sources = data.get("data_sources", {})
 

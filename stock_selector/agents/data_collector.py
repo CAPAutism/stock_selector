@@ -1,14 +1,14 @@
 """
 数据采集Agent
 
-负责从Tushare获取板块资金流向数据，从互联网获取热度数据
+负责从AKShare获取板块资金流向数据，从互联网获取热度数据
 """
 
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 from stock_selector.agents.base_agent import BaseAgent
-from stock_selector.data_sources.tushare_client import TushareClient
+from stock_selector.data_sources.akshare_client import AKShareClient
 from stock_selector.queue.memory_queue import get_queue
 from stock_selector.config.settings import Settings
 
@@ -18,7 +18,7 @@ class DataCollectorAgent(BaseAgent):
     数据采集Agent
 
     职责:
-    - 从Tushare获取板块资金流向
+    - 从AKShare获取板块资金流向（免费数据）
     - 从互联网获取热度数据(预留接口)
     - 将聚合数据写入raw_market_data队列
     """
@@ -28,11 +28,11 @@ class DataCollectorAgent(BaseAgent):
         初始化数据采集Agent
 
         Args:
-            token: Tushare API Token，默认使用配置
+            token: Tushare API Token（可选，用于备选）
         """
         settings = Settings()
         self.token = token or settings.tushare_token
-        self.tushare_client = TushareClient(self.token)
+        self.akshare_client = AKShareClient()
         self.settings = settings
 
         # 获取输出队列
@@ -74,7 +74,7 @@ class DataCollectorAgent(BaseAgent):
         """
         trade_date = datetime.now().strftime("%Y%m%d")
 
-        # 采集板块资金流向
+        # 采集板块资金流向 (使用AKShare免费接口)
         sectors_fund_flow = self._collect_sector_fund_flow(trade_date)
 
         # 采集热度数据(预留接口)
@@ -100,7 +100,7 @@ class DataCollectorAgent(BaseAgent):
             板块资金流向列表
         """
         try:
-            df = self.tushare_client.get_sector_fund_flow(trade_date)
+            df = self.akshare_client.get_sector_fund_flow(indicator="今日")
             if df is None or df.empty:
                 return []
 
@@ -108,12 +108,13 @@ class DataCollectorAgent(BaseAgent):
             records = []
             for _, row in df.iterrows():
                 records.append({
-                    "code": row.get("code", ""),
-                    "name": row.get("name", ""),
+                    "code": str(row.get("code", "")),
+                    "name": str(row.get("name", "")),
                     "close": row.get("close", 0),
                     "change": row.get("change", 0),
                     "amount": row.get("amount", 0),
-                    "main_amount": row.get("main_amount", 0)
+                    "main_amount": row.get("main_amount", 0),
+                    "rank": row.get("rank", 0)
                 })
 
             return records
